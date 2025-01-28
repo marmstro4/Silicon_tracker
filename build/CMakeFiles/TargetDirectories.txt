@@ -1,0 +1,3 @@
+/home/michaela/straw/expert_geosim/build/CMakeFiles/geo.dir
+/home/michaela/straw/expert_geosim/build/CMakeFiles/edit_cache.dir
+/home/michaela/straw/expert_geosim/build/CMakeFiles/rebuild_cache.dir
