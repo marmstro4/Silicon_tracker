@@ -174,7 +174,7 @@ def findClosestPointOnLine(centroid, direction, point):
 
     return closestPoint
 
-filename = '4.csv'  # replace with your file name
+filename = 'shift_4mm_4layers_gap.csv'  # replace with your file name
 result = extract_numbers(filename)
 reco_z_err = []
 vac_r = 6.35

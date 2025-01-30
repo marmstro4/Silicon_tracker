@@ -46,14 +46,13 @@ using Point3D = array<double, 3>;
 using Matrix3x3 = array<array<double, 3>, 3>;
 const double c = 299792458.0;
 
-const double rCell = 0.4;
+const double rCell = 0.5;
 double offset = 6.35;
 double length = 11.5;
-double girth = 11.4*2-6;
+double girth = 17.2;
 double sig = 0;
 int layers = 4;
 int rows = static_cast<int>(length / (2*rCell));
-//int rows = 7;
 
 TH2F* pos_z = new TH2F("pos_z","pos_z",30,-7.5,7.5,10,-2.5,2.5);
 TH1F* reco_z = new TH1F("reco_z","reco_z",1000,-25,25);
@@ -183,6 +182,205 @@ std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStra
     }
 
     return std::make_tuple(xCenter, yCenter, zCenter);
+
+}
+
+std::tuple<std::vector<double>, std::vector<double>,std::vector<double>,std::vector<double>> GetStrawCentersTransverseStepZoffsetOverhang() {
+
+    std::vector<double> xCenter, yCenter, zCenter;
+    std::vector<double> mod_straws;
+    double count = 0;
+
+    for (int j = 0; j<layers; ++j) {
+
+        if (j==0) {
+            for (int i = 0; i<21; i++) {
+                xCenter.push_back(offset-girth/2);
+                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==1) {
+            for (int i = 0; i<20; i++) {
+                xCenter.push_back(offset-girth/2);
+                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==2) {
+            for (int i = 0; i<19; i++) {
+                xCenter.push_back(offset-girth/2);
+                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==3) {
+            for (int i = 0; i<17; i++) {
+                xCenter.push_back(offset-girth/2);
+                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                zCenter.push_back(13-0.40-i*0.1-6*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+    }
+
+    cout<<count<<endl;
+    mod_straws.push_back(count);
+
+    for (int j = 0; j<layers; ++j) {
+
+        if (j==0) {
+            for (int i = 0; i<21; i++) {
+                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                yCenter.push_back(-offset+girth/2);
+                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==1) {
+            for (int i = 0; i<20; i++) {
+                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                yCenter.push_back(-offset+girth/2);
+                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==2) {
+            for (int i = 0; i<19; i++) {
+                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                yCenter.push_back(-offset+girth/2);
+                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==3) {
+            for (int i = 0; i<17; i++) {
+                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
+                yCenter.push_back(-offset+girth/2);
+                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+    }
+
+    cout<<count<<endl;
+    mod_straws.push_back(count);
+
+    for (int j = 0; j<layers; ++j) {
+
+        if (j==0) {
+            for (int i = 0; i<21; i++) {
+                xCenter.push_back(girth/2-offset);
+                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==1) {
+            for (int i = 0; i<20; i++) {
+                xCenter.push_back(girth/2-offset);
+                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==2) {
+            for (int i = 0; i<19; i++) {
+                xCenter.push_back(girth/2-offset);
+                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==3) {
+            for (int i = 0; i<17; i++) {
+                xCenter.push_back(girth/2-offset);
+                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+    }
+
+    cout<<count<<endl;
+    mod_straws.push_back(count);
+
+    for (int j = 0; j<layers; ++j) {
+
+        if (j==0) {
+            for (int i = 0; i<21; i++) {
+                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                yCenter.push_back(+offset-girth/2);
+                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==1) {
+            for (int i = 0; i<20; i++) {
+                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                yCenter.push_back(+offset-girth/2);
+                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==2) {
+            for (int i = 0; i<19; i++) {
+                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                yCenter.push_back(+offset-girth/2);
+                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+        if (j==3) {
+            for (int i = 0; i<17; i++) {
+                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
+                yCenter.push_back(+offset-girth/2);
+                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
+                count=count+1;
+                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+            }
+        }
+
+    }
+
+    cout<<count<<endl;
+    mod_straws.push_back(count);
+    cout<<mod_straws[0]<<","<<mod_straws[1]<<","<<mod_straws[2]<<","<<mod_straws[3]<<endl;
+
+    return std::make_tuple(xCenter, yCenter, zCenter,mod_straws);
 
 }
 
@@ -590,7 +788,7 @@ std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStra
 
 }
 
-void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yCenter) {
+void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yCenter, std::vector<double> mod_straws) {
     TCanvas* canvas = new TCanvas("canvas", "Straws and Track", 800, 800);
     // Create a canvas
     canvas->SetFixedAspectRatio(); // Ensure equal scaling on both axes
@@ -614,11 +812,11 @@ void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yC
     // Draw the circles (straws)
     for (size_t i = 0; i < yCenter.size(); ++i) {
 
-        if ((i < rows*2*layers) || (( (i > 2*rows*2*layers-1) && (i < 2*rows*3*layers)))) {
+        if (i<mod_straws[0] || (i>=mod_straws[1] && i<mod_straws[2]) ) {
             TEllipse* straw = new TEllipse(zCenter[i], yCenter[i], rCell);
-            straw->SetFillStyle(0); // No fill
-            straw->SetLineColor(kBlack);
-            straw->Draw("same");
+                straw->SetFillStyle(0); // No fill
+                straw->SetLineColor(kBlack);
+                straw->Draw("same");
         }
 
     }
@@ -626,22 +824,22 @@ void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yC
     canvas->Update();
 }
 
-void PlotDOCAZY(const std::vector<double>& zcell, const std::vector<double>& ycell, std::vector<double> radius) {
+void PlotDOCAZY(const std::vector<double>& zcell, const std::vector<double>& ycell, std::vector<double> radius, std::vector<double> mod_straws) {
 
     // Draw the circles (straws)
     for (size_t i = 0; i < radius.size(); ++i) {
 
-        //if ((i < rows*2*layers) || (( (i > 2*rows*2*layers) && (i < 2*rows*3*layers)))) {
+        if (i<mod_straws[0] || (i>mod_straws[1] && i<mod_straws[2]) ) {
             TEllipse* DOCA = new TEllipse(zcell[i], ycell[i], radius[i]);
             DOCA->SetFillStyle(0); // No fill
             DOCA->SetLineColor(kRed);
             DOCA->Draw("same");
-        //}
+        }
     }
 
 }
 
-void PlotXYCells(const std::vector<double>& xCenter, const std::vector<double>& yCenter) {
+void PlotXYCells(const std::vector<double>& xCenter, const std::vector<double>& yCenter, std::vector<double> mod_straws) {
     // Check if the inputs are valid
 
     TCanvas* canvas = new TCanvas("canvas", "Straws and Track", 1000, 1000);
@@ -661,28 +859,28 @@ void PlotXYCells(const std::vector<double>& xCenter, const std::vector<double>& 
 
 
     // Draw the box (straws)
-    for (int i = 0; i < rows*2*layers; ++i) {
-        TBox* straw = new TBox(xCenter[i]-girth/2, yCenter[i]-rCell, xCenter[i]+girth/2-1, yCenter[i]+rCell);
+    for (int i = 0; i < mod_straws[0]; ++i) {
+        TBox* straw = new TBox(xCenter[i]-girth/2+3, yCenter[i]-rCell, xCenter[i]+girth/2-1, yCenter[i]+rCell);
         straw->SetFillStyle(0); // No fill
         straw->SetLineColor(kBlack);
         straw->Draw("same");
     }
 
-    for (int i = rows*2*layers; i < 2*rows*2*layers; ++i) {
+    for (int i = mod_straws[0]; i < mod_straws[1]; ++i) {
         TBox* straw1 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2+1, xCenter[i]+rCell, yCenter[i]+girth/2-3);
         straw1->SetFillStyle(0); // No fill
         straw1->SetLineColor(kRed);
         straw1->Draw("same");
     }
 
-    for (int i = 2*rows*2*layers; i < 2*rows*3*layers; ++i) {
+    for (int i = mod_straws[1]; i < mod_straws[2]; ++i) {
         TBox* straw2 = new TBox(xCenter[i]-girth/2+1, yCenter[i]-rCell, xCenter[i]+girth/2-3, yCenter[i]+rCell);
         straw2->SetFillStyle(0); // No fill
         straw2->SetLineColor(kBlue);
         straw2->Draw("same");
     }
 
-    for (int i = 2*rows*3*layers; i < 2*rows*4*layers; ++i) {
+    for (int i = mod_straws[2]; i < mod_straws[3]; ++i) {
         TBox* straw3 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2+3, xCenter[i]+rCell, yCenter[i]+girth/2-1);
         straw3->SetFillStyle(0); // No fill
         straw3->SetLineColor(kGreen);
@@ -773,14 +971,13 @@ std::vector<double> vertex_gen() {
     static std::mt19937 gen(rd()); // Mersenne Twister generator
     static std::uniform_real_distribution<> disXY(-0.3,0.3);//XY dispursion
     static std::uniform_real_distribution<> disAB(-5.0/1000.0,5.0/1000.0);//Angular dispursion
-    static std::uniform_real_distribution<> disZ(-7.5,7.5);//Z vertex
+    static std::uniform_real_distribution<> disZ(-2.5,2.5);//Z vertex
 
     // Generate incoming angle and position
     double x0 = disXY(gen), y0 = disXY(gen);
     double A = disAB(gen), B = disAB(gen);
     double z0 = sqrt(1.0 - tan(A)*tan(A) - tan(B)*tan(B));
     std::vector<double> direction = {tan(A),tan(B),z0};
-
 
     //Calculate incoming direction and positions
     double z = disZ(gen);
@@ -836,18 +1033,8 @@ std::pair<std::vector<double>,std::vector<double>> scatter() {
     std::vector<double> COM_dir = generateDir();
     std::vector<double> lab_dir = lorentzBoostDirection(COM_dir, knock_v_mag);
 
-    cout<<"("<<COM_dir[0]<<","<<COM_dir[1]<<","<<COM_dir[2]<<")"<<endl;
-    cout<<"("<<lab_dir[0]<<","<<lab_dir[1]<<","<<lab_dir[2]<<")"<<endl;
-
-    std::vector<double> fit_x,fit_y,fit_z;
-
-    for (double t = 0; t<20; t=t+0.1) {
-        fit_x.push_back(lab_dir[0]*t+position[0]);
-        fit_y.push_back(lab_dir[1]*t+position[1]);
-        fit_z.push_back(lab_dir[2]*t+position[2]);
-    }
-
-    PlotTrack(fit_z,fit_y);
+    //cout<<"("<<COM_dir[0]<<","<<COM_dir[1]<<","<<COM_dir[2]<<")"<<endl;
+    //cout<<"("<<lab_dir[0]<<","<<lab_dir[1]<<","<<lab_dir[2]<<")"<<endl;
 
     return std::make_pair(lab_dir, position);
 
@@ -855,7 +1042,7 @@ std::pair<std::vector<double>,std::vector<double>> scatter() {
 
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::vector<double>,
            std::vector<double>, std::vector<double>, std::vector<double>, std::vector<int>>
-hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell) {
+hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell, std::vector<double> mod_straws) {
 
     std::vector<double> xcells, ycells, zcells;
     std::vector<double> xhits, yhits, zhits;
@@ -876,13 +1063,13 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
         double dy = posvect[1]-ycell[i];
         double dz = posvect[2]-zcell[i];
 
-        if ((i < rows*2*layers) || (( (i > 2*rows*2*layers) && (i < 2*rows*3*layers)))) {
+        if ((i < mod_straws[0]) || (( (i > mod_straws[1]-1) && (i < mod_straws[2])))) {
             A = uz*uz+uy*uy;
             B = 2*(dz*uz+dy*uy);
             C = dz*dz + dy*dy - rCell*rCell;
         }
 
-        if (((i > rows*2*layers) && (i < 2*rows*2*layers)) || ((i > 2*rows*3*layers) && (i < 2*rows*4*layers))) {
+        if (((i > mod_straws[0]-1) && (i < mod_straws[1])) || ((i > mod_straws[2]-1) && (i < mod_straws[3]))) {
             A = ux*ux+uz*uz;
             B = 2*(dx*ux+dz*uz);
             C = dx*dx + dz*dz - rCell*rCell;
@@ -922,7 +1109,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
 
 
             // Draw the box (straws)
-    if (i < rows*2*layers) {
+    if (i < mod_straws[0]) {
         if (x>= xcell[i] - 2*offset - outer && x<= xcell[i] + 2*offset + inner) {
 
             if (t1>0 && t2>0) {
@@ -938,8 +1125,8 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
 
                 radius.push_back(sqrt((midy-ycell[i])*(midy-ycell[i])+(midz-zcell[i])*(midz-zcell[i])));
 
-                if (i < rows*2*layers) {axis.push_back(0);}
-                if ((i > 2*rows*2*layers) && (i < 2*rows*3*layers)) {axis.push_back(2);}
+                axis.push_back(0);
+
                 }
 
                 //cout<<x<<" "<<y<<" "<<z<<" "<<t1<<" "<<t2<<" "<<xcell[i]<<" "<<ycell[i]<<" "<<zcell[i]<<" "<<sqrt((y-ycell[i])*(y-ycell[i])+(z-zcell[i])*(z-zcell[i]))<<" "<<i<<" codex"<<endl;
@@ -947,7 +1134,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
             }
         }
 
-    if ( (i > 2*rows*2*layers) && (i < 2*rows*3*layers)) {
+    if ( (i > mod_straws[1]-1) && (i < mod_straws[2])) {
         if (x>= xcell[i] - 2*offset - inner && x<= xcell[i] + 2*offset + outer) {
 
             if (t1>0 && t2>0) {
@@ -963,8 +1150,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
 
                 radius.push_back(sqrt((midy-ycell[i])*(midy-ycell[i])+(midz-zcell[i])*(midz-zcell[i])));
 
-                if (i < rows*2*layers) {axis.push_back(0);}
-                if ((i > 2*rows*2*layers) && (i < 2*rows*3*layers)) {axis.push_back(2);}
+                axis.push_back(2);
                 }
 
                 //cout<<x<<" "<<y<<" "<<z<<" "<<t1<<" "<<t2<<" "<<xcell[i]<<" "<<ycell[i]<<" "<<zcell[i]<<" "<<sqrt((y-ycell[i])*(y-ycell[i])+(z-zcell[i])*(z-zcell[i]))<<" "<<i<<" codex"<<endl;
@@ -973,7 +1159,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
     }
 
 
-    if ((i > rows*2*layers) && (i < 2*rows*2*layers)) {
+    if ((i > mod_straws[0]-1) && (i < mod_straws[1])) {
         if (y>= ycell[i] - 2*offset - outer && y<= ycell[i] + 2*offset + inner) {
 
             if (t1>0 && t2>0) {
@@ -988,15 +1174,14 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
 
                 radius.push_back(sqrt((midx-xcell[i])*(midx-xcell[i])+(midz-zcell[i])*(midz-zcell[i])));
 
-                if ((i > rows*2*layers) && (i < 2*rows*2*layers)) {axis.push_back(1);}
-                if ((i > 2*rows*3*layers) && (i < 2*rows*4*layers)) {axis.push_back(3);}
+                axis.push_back(1);
             }
                 //cout<<x<<" "<<y<<" "    <<z<<" "<<t1<<" "<<t2<<" "<<xcell[i]<<" "<<ycell[i]<<" "<<zcell[i]<<" "<<sqrt((y-ycell[i])*(y-                                              ycell[i])+(z-zcell[i])*(z-zcell[i]))<<" "<<i<<" codex 2"<<endl;
             }
         }
 
 
-    if ((i > 2*rows*3*layers) && (i < 2*rows*4*layers)) {
+    if ((i > mod_straws[2]-1) && (i < mod_straws[3])) {
         if (y>= ycell[i] - 2*offset - outer && y<= ycell[i] + 2*offset + inner) {
 
             if (t1>0 && t2>0) {
@@ -1011,8 +1196,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
 
                 radius.push_back(sqrt((midx-xcell[i])*(midx-xcell[i])+(midz-zcell[i])*(midz-zcell[i])));
 
-                if ((i > rows*2*layers) && (i < 2*rows*2*layers)) {axis.push_back(1);}
-                if ((i > 2*rows*3*layers) && (i < 2*rows*4*layers)) {axis.push_back(3);}
+                axis.push_back(3);
             }
                 //cout<<x<<" "<<y<<" "    <<z<<" "<<t1<<" "<<t2<<" "<<xcell[i]<<" "<<ycell[i]<<" "<<zcell[i]<<" "<<sqrt((y-ycell[i])*(y-                                              ycell[i])+(z-zcell[i])*(z-zcell[i]))<<" "<<i<<" codex 2"<<endl;
             }
@@ -1180,15 +1364,18 @@ Point3D findClosestPointOnLine(const Point3D& centroid, const Point3D& direction
 int main(int argc, char* argv[]) {
   TApplication app("app", &argc, argv);
 
+  //std::ofstream outfile("shift_4mm_3layers_gap.csv", std::ios::app);
+  std::ofstream outfile("dump", std::ios::app);
+
   //Generate straws
-  auto [xCenter,yCenter,zCenter] = GetStrawCentersTransverseStepZoffset();
+  auto [xCenter,yCenter,zCenter,mod_straws] = GetStrawCentersTransverseStepZoffsetOverhang();
 
   //Plot straw array
-  //PlotXYCells(xCenter,yCenter);
-  PlotMidYZ(zCenter,yCenter);
+  //PlotXYCells(xCenter,yCenter,mod_straws);
+  PlotMidYZ(zCenter,yCenter,mod_straws);
 
   //Generate and plot proton track
-  std::vector<double> trk_x,trk_y,trk_z,fit_x,fit_y,fit_z, dirvect=generateDir(), posvect=generatePos();
+  //std::vector<double> trk_x,trk_y,trk_z,fit_x,fit_y,fit_z, dirvect=generateDir(), posvect=generatePos();
   //std::vector<double> trk_x,trk_y,trk_z,fit_x,fit_y,fit_z;//dirvect={0,1,-1}, posvect={0.1,0.1,0.1};
 
   int sample_N = 1000;
@@ -1207,7 +1394,7 @@ int main(int argc, char* argv[]) {
     //posvect[2] = 0;
 
   //Determine hits
-  auto [xhits, yhits, zhits, xcells, ycells, zcells, radius, axis] = hits(posvect, dirvect, xCenter, yCenter, zCenter);
+  auto [xhits, yhits, zhits, xcells, ycells, zcells, radius, axis] = hits(posvect, dirvect, xCenter, yCenter, zCenter, mod_straws);
 
   //cout<<xhits.size()<<endl;
 
@@ -1246,6 +1433,18 @@ int main(int argc, char* argv[]) {
 
     }
 
+    /*
+    std::vector<double> trk_x,trk_y,trk_z;
+
+    for (double t = 0; t<20; t=t+0.1) {
+        trk_x.push_back(lab_dir[0]*t+position[0]);
+        trk_y.push_back(lab_dir[1]*t+position[1]);
+        trk_z.push_back(lab_dir[2]*t+position[2]);
+    }
+
+    PlotTrack(trk_z,trk_y);
+    */
+
 
     //first = {0,0,1};
 
@@ -1275,20 +1474,21 @@ int main(int argc, char* argv[]) {
 
     if (xhits.size()>2) {
     counts = counts + 1;
-    //outfile<<"start"<<endl;
-    //outfile<<counts<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<posvect[2]<<","<<reco_v[2]-posvect[2]<<","<<girth<<endl;
+    outfile<<"start"<<endl;
+    outfile<<counts<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<posvect[2]<<","<<reco_v[2]-posvect[2]<<","<<girth<<endl;
 
     for (int i=0; i<xhits.size(); i++) {
-        //outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<radius[i]<<","<<axis[i]<<endl;
+        outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<radius[i]<<","<<axis[i]<<endl;
     }
 
-    //outfile<<"stop"<<endl;
+    outfile<<"stop"<<endl;
 
     }
 
 
 
   }
+
      cout<<counts<<endl;
      cout<<counts/sample_N<<endl;
   //cout<<l<<","<<sample/3000.0<<","<<nhits/3000.0<<endl;
