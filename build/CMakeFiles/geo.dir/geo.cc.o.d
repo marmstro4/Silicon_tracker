@@ -1,4 +1,4 @@
-CMakeFiles/geo.dir/geo.cc.o: /home/michaela/straw/expert_geosim/geo.cc \
+CMakeFiles/geo.dir/geo.cc.o: /home/michaela/silicon/geosim/geo.cc \
  /usr/include/stdc-predef.h /usr/include/c++/13/cstdlib \
  /usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/os_defines.h \
@@ -369,60 +369,4 @@ CMakeFiles/geo.dir/geo.cc.o: /home/michaela/straw/expert_geosim/geo.cc \
  /home/michaela/Downloads/root_src/core/meta/inc/TInterpreter.h \
  /home/michaela/Downloads/root_src/hist/hist/inc/TF1AbsComposition.h \
  /home/michaela/Downloads/root_src/math/mathcore/inc/Math/ParamFunctor.h \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ComponentAnsys123.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ComponentFieldMap.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Component.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Geometry.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Medium.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/FundamentalConstants.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/GPUInterface.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/GarfieldConstants.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Solid.hh \
- /home/michaela/Downloads/root_src/math/matrix/inc/TMatrixD.h \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/TetrahedralTree.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewField.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewBase.hh \
- /home/michaela/Downloads/root_src/graf2d/gpad/inc/TPad.h \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewFEMesh.hh \
- /home/michaela/Downloads/root_src/graf2d/graf/inc/TGaxis.h \
- /home/michaela/Downloads/root_src/graf2d/graf/inc/TLine.h \
- /home/michaela/Downloads/root_src/core/base/inc/TAttText.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoManager.h \
- /usr/include/c++/13/mutex /usr/include/c++/13/bits/std_mutex.h \
- /usr/include/c++/13/bits/unique_lock.h \
- /home/michaela/Downloads/root_src/core/cont/inc/TObjArray.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoNavigator.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoCache.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoNode.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoAtt.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoVolume.h \
- /home/michaela/Downloads/root_src/core/base/inc/TAtt3D.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoMedium.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoMaterial.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoElement.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoShape.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoPatternFinder.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoStateInfo.h \
- /home/michaela/Downloads/root_src/geom/geom/inc/TGeoMatrix.h \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ComponentCST.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewDrift.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewMedium.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/MediumMagboltz.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/MagboltzInterface.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/MediumGas.hh \
- /usr/include/c++/13/bitset \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Sensor.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Shaper.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/AvalancheMicroscopic.hh \
- /home/michaela/Downloads/root_src/hist/hist/inc/TH1.h \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Sensor.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/MultiProcessInterface.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/AvalancheMC.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Random.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ComponentAnalyticField.hh \
- /usr/include/c++/13/complex \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/TrackHeed.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/Track.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/DriftLineRKF.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewDrift.hh \
- /home/michaela/Downloads/garfield/garfieldpp/install/include/Garfield/ViewCell.hh
+ /home/michaela/Downloads/root_src/graf2d/graf/inc/TPolyLine.h

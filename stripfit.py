@@ -59,18 +59,9 @@ def extract_numbers(filename):
             i += 1
         return blocks
 
-class Strip:
-    def __init__(self, a, b, c, w, L, mod):
-        self.a = a
-        self.b = b
-        self.c = c
-        self.w = w
-        self.L = L
-        self.mod = mod
-
 def linetorectangle(params, rectangle):
     x0, y0, z0, ux, uy, uz = params
-    a, b, c, W, L, modu = rectangle.a, rectangle.b, rectangle.c, rectangle.modu
+    a, b, c, W, L, modu = rectangle.a, rectangle.b, rectangle.c, rectangle.w, rectangle.L, rectangle.mod
 
     # Ensure the direction vector is normalized
     norm = math.sqrt(ux * ux + uy * uy + uz * uz)
@@ -88,7 +79,7 @@ def linetorectangle(params, rectangle):
     pz = z0 + t * uz
 
     # Determine the dimensions of the rectangle based on modu
-    if modu == 0 or modu == 2:
+    if modu == 0.0 or modu == 2.0:
         # Rectangle is 79.2 long in x and 1 long in y
         half_length_x = 79.2 / 2
         half_length_y = 1
@@ -96,7 +87,7 @@ def linetorectangle(params, rectangle):
         dx = px - a
         dy = py - b
         dz = pz - c
-    elif modu == 1 or modu == 3:
+    elif modu == 1.0 or modu == 3.0:
         # Rectangle is 79.2 long in y and 1 long in x
         half_length_x = 1
         half_length_y = 79.2 / 2
@@ -104,8 +95,6 @@ def linetorectangle(params, rectangle):
         dx = px - a
         dy = py - b
         dz = pz - c
-    else:
-        raise ValueError("Invalid modu value. modu should be 0, 1, 2, or 3.")
 
     # Clamp the closest point to the rectangle's bounds
     clamped_x = max(-half_length_x, min(dx, half_length_x))
@@ -123,56 +112,8 @@ def linetorectangle(params, rectangle):
 
     return distance
 
-
-def linetocylinder(params, cylinder):
-    x0, y0, z0, ux, uy, uz = params
-
-    # Ensure the direction vector is normalized
-    norm = math.sqrt(ux * ux + uy * uy + uz * uz)
-    ux /= norm
-    uy /= norm
-    uz /= norm
-
-    # Parametric line: p(t) = (x0 + t*ux, y0 + t*uy, z0 + t*uz)
-    # Project the cylinder center onto the line
-    a, b, c, r, L, modu = cylinder.a, cylinder.b, cylinder.c, cylinder.r, cylinder.L, cylinder.mod
-
-    t = (a - x0) * ux + (b - y0) * uy + (c - z0) * uz
-
-    # Closest point on the line
-    px = x0 + t * ux
-    py = y0 + t * uy
-    pz = z0 + t * uz
-
-    if modu == 0 or modu == 2:
-        # Distance along the cylinder axis (x-axis)
-        dx = px - a
-        if ((dx<a-(L-vac_r-outer_end)) or (dx>a+(vac_r-inner_end))):
-            # If out of cylinder bounds, penalize
-            return 1e9
-
-        # Perpendicular distance to the cylinder's surface
-        dy = py - b
-        dz = pz - c
-        radial_distance = math.sqrt(dy * dy + dz * dz)
-
-    elif modu == 1 or modu == 3:
-        # Distance along the cylinder axis (x-axis)
-        dy = py - b
-        if ((dy<a-(L-vac_r-outer_end)) or (dy>b+(vac_r-inner_end))):
-            # If out of cylinder bounds, penalize
-            return 1e9
-
-        # Perpendicular distance to the cylinder's surface
-        dx = px - a
-        dz = pz - c
-        radial_distance = math.sqrt(dx * dx + dz * dz)
-
-    # Return the squared difference from the radius
-    return (radial_distance - r) * (radial_distance - r)
-
 def FitFunction(params, strips):
-    x0, y0 = params[:2]
+    x0, y0, z0, ux, uy, uz = params
 
     # Add penalties for violating the constraints
     penalty = 0.0
@@ -184,10 +125,15 @@ def FitFunction(params, strips):
         penalty += 1e9 * (abs(y0) - 2)
     elif y0 > 2:
         penalty += 1e9 * (y0 - 2)
+    if z0 < -49.26:
+        penalty += 1e9 * (abs(z0) + 49.26)
+    elif z0 > 94.74:
+        penalty += 1e9 * (z0 - 94.74)
 
     total_sum = 0.0
-    for cylinder in cylinders:
-        total_sum += linetorectangle(params, strips)
+
+    for strip in strips:
+        total_sum += linetorectangle(params, strip)
     return total_sum + penalty
 
 def FitRect(strips, first):
@@ -195,7 +141,7 @@ def FitRect(strips, first):
         return FitFunction(params, strips)
 
     initial_params = np.array([first[0], first[1], first[2], 0, 0, 1])
-    bounds = [(-2, 2), (-2, 2), (-49.26,94.74), (-1, 1), (-1, 1), (-1, 1)]
+    bounds = [(-2, 2), (-2, 2), (-49.26, 94.74), (-1, 1), (-1, 1), (-1, 1)]
     result = minimize(fit_function, initial_params, method='Powell', bounds=bounds)
 
     centroid = result.x[:3]
@@ -236,58 +182,50 @@ reco_z_err = []
 count = 0
 
 for block in result:
-    cylinders = []
-    origin = Point3D(block[0][2],block[0][3],block[0][4])
+    strips = []
+    origin = Point3D(block[0][2], block[0][3], block[0][4])
     count = block[0][0]
 
-    if count>100:
+    if count > 100:
         break
 
     for line in block[1]:
-        strip = Strip(line[0], line[1], line[2], line[3], girth, line[4])
+        print(line)
+        if line[0] == 0.0:
+            continue
+        strip = Strip(line[0], line[1], line[2], line[3], line[4], line[5])
         strips.append(strip)
 
-    first = [0,0,1]
-    min_diff = 1e6;
+    first = [0, 0, 1]
+    min_diff = 1e6
 
     for i in range(len(strips)):
-        diff = math.sqrt(strips[i].a**2 + strips[i].b**2 + stripss[i].c**2)
-        if diff < min_diff:
-            min_diff = diff
-            norm = math.sqrt(strips[i].a**2+strips[i].a**2+strips[i].c**2)
-            first = [strips[i].a, strips[i].b, strips[i].c]
+        fitvec, fitcent = FitRect([strips[i]], first)
+        reco_v = findClosestPointOnLine(fitcent, fitvec, origin)
+        reco_z_err.append(reco_v[2] - origin[2])
 
-    fitvec, fitcent = FitRect([strips[i]],first)
-    reco_v = findClosestPointOnLine(fitvec,fitcent,origin)
-    reco_z_err.append(reco_v[2]-origin[2])
-
-
-hist, bins = np.histogram(reco_z_err, bins=200, range=(-1, 1))
+hist, bins = np.histogram(reco_z_err, bins=200, range=(-100, 100))
 bin_centers = (bins[1:] + bins[:-1]) / 2
 popt, pcov = curve_fit(gaussian, bin_centers, hist)
 
-min = np.digitize(popt[1]-abs(3*popt[2]), bins)
-max = np.digitize(popt[1]+abs(3*popt[2]), bins)
+min_idx = np.digitize(popt[1] - abs(3 * popt[2]), bins)
+max_idx = np.digitize(popt[1] + abs(3 * popt[2]), bins)
 
 integral = 0
 
-for i in range(max-min):
-    integral = integral + hist[min + i]
+for i in range(max_idx - min_idx):
+    integral += hist[min_idx + i]
 
-print("mean = ",popt[1]*10," +/-",np.sqrt(pcov[1,1])*10," [mm]")
-print("sigma = ",popt[2]*10," +/-",np.sqrt(pcov[2,2])*10," [mm]")
-print("integral =",integral,", 3sig =",integral/count)
-
+print("mean = ", popt[1], " +/-", np.sqrt(pcov[1, 1]), " [mm]")
+print("sigma = ", popt[2], " +/-", np.sqrt(pcov[2, 2]), " [mm]")
+print("integral =", integral, ", 3sig =", integral / count)
 
 x = np.linspace(bin_centers[0], bin_centers[-1], 100)
 y = gaussian(x, *popt)
 
-plt.hist(reco_z_err, bins=200, range=(-1, 1), alpha=0.5, label='Histogram')
+plt.hist(reco_z_err, bins=200, range=(-100, 100), alpha=0.5, label='Histogram')
 plt.plot(x, y, label='Fitted Gaussian')
 plt.legend()
 plt.show()
 
-
-
-
-
+#Understanding geometry of reconstruction incorrectly its lines not surfaces

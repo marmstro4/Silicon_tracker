@@ -54,10 +54,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/michaela/straw/expert_geosim
+CMAKE_SOURCE_DIR = /home/michaela/silicon/geosim
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/michaela/straw/expert_geosim/build
+CMAKE_BINARY_DIR = /home/michaela/silicon/geosim/build
 
 #=============================================================================
 # Directory level rules for the build root directory
@@ -81,14 +81,14 @@ clean: CMakeFiles/geo.dir/clean
 CMakeFiles/geo.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/geo.dir/build.make CMakeFiles/geo.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/geo.dir/build.make CMakeFiles/geo.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/michaela/straw/expert_geosim/build/CMakeFiles --progress-num=1,2 "Built target geo"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/michaela/silicon/geosim/build/CMakeFiles --progress-num=1,2 "Built target geo"
 .PHONY : CMakeFiles/geo.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/geo.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/michaela/straw/expert_geosim/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/michaela/silicon/geosim/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/geo.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/michaela/straw/expert_geosim/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/michaela/silicon/geosim/build/CMakeFiles 0
 .PHONY : CMakeFiles/geo.dir/rule
 
 # Convenience name for target.

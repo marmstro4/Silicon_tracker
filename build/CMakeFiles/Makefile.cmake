@@ -16,7 +16,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/home/michaela/Downloads/root_build/ROOTConfig.cmake"
   "/home/michaela/Downloads/root_build/RootMacros.cmake"
   "/home/michaela/Downloads/root_src/cmake/modules/FindVdt.cmake"
-  "/home/michaela/straw/expert_geosim/CMakeLists.txt"
+  "/home/michaela/silicon/geosim/CMakeLists.txt"
   "CMakeFiles/3.28.3/CMakeCCompiler.cmake"
   "CMakeFiles/3.28.3/CMakeCXXCompiler.cmake"
   "CMakeFiles/3.28.3/CMakeSystem.cmake"

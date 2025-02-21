@@ -24,35 +24,25 @@
 #include <thread>
 #include <chrono>
 #include<TF1.h>
+#include <TPolyLine.h>
 
-#include "Garfield/ComponentAnsys123.hh"
-#include "Garfield/ViewField.hh"
-#include "Garfield/ViewFEMesh.hh"
-#include "Garfield/ViewMedium.hh"
-#include "Garfield/MediumMagboltz.hh"
-#include "Garfield/Sensor.hh"
-#include "Garfield/AvalancheMicroscopic.hh"
-#include "Garfield/AvalancheMC.hh"
-#include "Garfield/Random.hh"
-#include "Garfield/ComponentAnalyticField.hh"
-#include "Garfield/TrackHeed.hh"
-#include "Garfield/DriftLineRKF.hh"
-#include "Garfield/ViewDrift.hh"
-#include "Garfield/ViewCell.hh"
-
-using namespace Garfield;
 using namespace std;
 using Point3D = array<double, 3>;
 using Matrix3x3 = array<array<double, 3>, 3>;
 const double c = 299792458.0;
 
-const double rCell = 0.5;
-double offset = 6.35;
-double length = 11.5;
-double girth = 17.2;
+float rCell = 0.5;
+float vacuum = 150;
+double offset = 35;
+double length = 79.2;
+int rows = 4;
+double girth = 43.6;
+float thick = 2;
+float shift = 161;
+float gap = 0.8;
 double sig = 0;
-int layers = 4;
-int rows = static_cast<int>(length / (2*rCell));
+int layers = 2;
+int sample_N = 10000;
 
 TH2F* pos_z = new TH2F("pos_z","pos_z",30,-7.5,7.5,10,-2.5,2.5);
 TH1F* reco_z = new TH1F("reco_z","reco_z",1000,-25,25);
@@ -69,722 +59,110 @@ struct Cylinder {
         : a(x), b(y), c(z), r(radius), L(length), mod(stack) {}
 };
 
-double randomiser(double radius) {
+struct Strip {
+    double a, b, c;  // Center position (a, b, c)
+    double W;        // Radius
+    double L;        // Length
+    int mod;         // Module
+
+    // Constructor
+    Strip(double x, double y, double z, double width, double length, int stack)
+        : a(x), b(y), c(z), W(width), L(length), mod(stack) {}
+};
+
+struct Point {
+    double x, y, z;
+};
+
+double randomiser(double pos, double spread) {
     static std::random_device rd; // Random device for seeding
     static std::mt19937 gen(rd()); // Mersenne Twister generator
-    static std::uniform_real_distribution<> dis(0.9,1.1);
+    static std::normal_distribution<> dis(0,spread);
 
-    double rad = dis(gen);
+    double randx = dis(gen);
 
-    if (rad*radius>rCell) {return rCell;}
-    else {return rad*radius;}
+    return randx;
 }
 
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersLongitudinal() {
+std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::vector<double>> GetBoxStrips() {
 
-    std::vector<double> xCenter, yCenter, zCenter;
+    std::vector<double> xCenter, yCenter, zCenter, mod;
 
-    double offset = 2.5;
-
-    double Vspace = 2.5;
-    double Hspace = 10;
-
-    int nTubesV = static_cast<int>(0.5*Vspace / rCell);
-    int nTubesH = static_cast<int>(0.5*Hspace / rCell);
-
-    //Original
-    for (int j = 0; j<nTubesH; ++j) {
-        for (int i = -j-1; i <= 2*nTubesV+j; ++i) {
-                xCenter.push_back(offset+j*2*rCell);
-                yCenter.push_back(-nTubesV*2*rCell+i*2*rCell+rCell);
-                zCenter.push_back(0);
-        }
-    }
-
-    //Rotate 90
-    std::vector<double> x_rotated,y_rotated,z_rotated;
-
-    for (int j = 0; j<nTubesH; ++j) {
-        for (int i = -j; i <= 2*nTubesV+j-1; ++i) {
-                y_rotated.push_back(-(offset+j*2*rCell));
-                x_rotated.push_back(-nTubesV*2*rCell+i*2*rCell+rCell);
-                z_rotated.push_back(0);
-        }
-    }
-
-    //Reflect verticals
-    std::vector<double> x_flip,y_flip,z_flip;
-
-    for (size_t i = 0; i < xCenter.size(); ++i) {
-        x_flip.push_back(-xCenter[i]);
-        y_flip.push_back(yCenter[i]);
-        z_flip.push_back(zCenter[i]);  // z remains unchanged
-    }
-
-      // Append the rotated coordinates to the original vectors
-    xCenter.insert(xCenter.end(), x_flip.begin(), x_flip.end());
-    yCenter.insert(yCenter.end(), y_flip.begin(), y_flip.end());
-    zCenter.insert(zCenter.end(), z_flip.begin(), z_flip.end());
-
-    //Add rotated
-    for (size_t i = 0; i < x_rotated.size(); ++i) {
-        xCenter.push_back(x_rotated[i]);
-        yCenter.push_back(y_rotated[i]);
-        zCenter.push_back(z_rotated[i]);  // z remains unchanged
-    }
-
-
-    for (size_t i = 0; i < x_rotated.size(); ++i) {
-        xCenter.push_back(x_rotated[i]);
-        yCenter.push_back(-y_rotated[i]);
-        zCenter.push_back(z_rotated[i]);  // z remains unchanged
-    }
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseStep() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-offset-1);
-            yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            yCenter.push_back(offset+1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+1);
-            yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-        }
-    }
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            yCenter.push_back(-offset-1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-        }
-    }
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>,std::vector<double>> GetStrawCentersTransverseStepZoffsetOverhang() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-    std::vector<double> mod_straws;
-    double count = 0;
+    for (int k = 0; k<rows; k++) {
 
     for (int j = 0; j<layers; ++j) {
-
-        if (j==0) {
-            for (int i = 0; i<21; i++) {
-                xCenter.push_back(offset-girth/2);
-                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==1) {
-            for (int i = 0; i<20; i++) {
-                xCenter.push_back(offset-girth/2);
-                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==2) {
-            for (int i = 0; i<19; i++) {
-                xCenter.push_back(offset-girth/2);
-                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==3) {
-            for (int i = 0; i<17; i++) {
-                xCenter.push_back(offset-girth/2);
-                yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                zCenter.push_back(13-0.40-i*0.1-6*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
+        xCenter.push_back(0);
+        yCenter.push_back(length/2+j*thick+thick/2);
+        zCenter.push_back(shift-(k+1)*girth-2*k*gap);
+        mod.push_back(0);
     }
-
-    cout<<count<<endl;
-    mod_straws.push_back(count);
 
     for (int j = 0; j<layers; ++j) {
-
-        if (j==0) {
-            for (int i = 0; i<21; i++) {
-                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                yCenter.push_back(-offset+girth/2);
-                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==1) {
-            for (int i = 0; i<20; i++) {
-                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                yCenter.push_back(-offset+girth/2);
-                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==2) {
-            for (int i = 0; i<19; i++) {
-                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                yCenter.push_back(-offset+girth/2);
-                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==3) {
-            for (int i = 0; i<17; i++) {
-                xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-                yCenter.push_back(-offset+girth/2);
-                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
+        xCenter.push_back(length/2+j*thick+thick/2);
+        yCenter.push_back(0);
+        zCenter.push_back(shift-(k+1)*girth-2*k*gap);
+        mod.push_back(1);
     }
-
-    cout<<count<<endl;
-    mod_straws.push_back(count);
 
     for (int j = 0; j<layers; ++j) {
-
-        if (j==0) {
-            for (int i = 0; i<21; i++) {
-                xCenter.push_back(girth/2-offset);
-                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==1) {
-            for (int i = 0; i<20; i++) {
-                xCenter.push_back(girth/2-offset);
-                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==2) {
-            for (int i = 0; i<19; i++) {
-                xCenter.push_back(girth/2-offset);
-                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==3) {
-            for (int i = 0; i<17; i++) {
-                xCenter.push_back(girth/2-offset);
-                yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
+        xCenter.push_back(0);
+        yCenter.push_back(-length/2-j*thick-thick/2);
+        zCenter.push_back(shift-(k+1)*girth-2*k*gap);
+        mod.push_back(2);
     }
-
-    cout<<count<<endl;
-    mod_straws.push_back(count);
 
     for (int j = 0; j<layers; ++j) {
+        xCenter.push_back(-length/2-j*thick-thick/2);
+        yCenter.push_back(0);
+        zCenter.push_back(shift-(k+1)*girth-2*k*gap);
+        mod.push_back(3);
+    }
 
-        if (j==0) {
-            for (int i = 0; i<21; i++) {
-                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                yCenter.push_back(+offset-girth/2);
-                zCenter.push_back(13-0.1-i*0.1-rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
+    }
+
+    return std::make_tuple(xCenter, yCenter, zCenter, mod);
+
+}
+
+std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::vector<double>> GetPentStrips() {
+
+    std::vector<double> xCenter, yCenter, zCenter, mod;
+
+    int sides = 5;
+
+    for (int k = 0; k<rows; k++ ) {
+
+        for (int j = 0; j<layers; ++j) {
+
+            std::vector<float> vertx;
+            std::vector<float> verty;
+
+            for (int i = 0; i<sides; i++) {
+                float circumradius = length/2+j*thick+thick/2;
+                vertx.push_back(circumradius*cos(2*3.14159*i/sides));
+                verty.push_back(circumradius*sin(2*3.14159*i/sides));
+            }
+
+            for (int i = 0; i<5; i++) {
+
+                float midx = (vertx[i]+vertx[(i+1)])/2;
+                float midy = (verty[i]+verty[(i+1)])/2;
+
+                if (i==5) {
+                    float midx = (vertx[i]+vertx[0])/2;
+                    float midy = (verty[i]+verty[0])/2;
+                }
+
+                xCenter.push_back(midx);
+                yCenter.push_back(midy);
+                zCenter.push_back(shift-(k+1)*girth-2*k*gap);
+                mod.push_back(1.0*i);
             }
         }
-
-        if (j==1) {
-            for (int i = 0; i<20; i++) {
-                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                yCenter.push_back(+offset-girth/2);
-                zCenter.push_back(13-0.15-i*0.1-2*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==2) {
-            for (int i = 0; i<19; i++) {
-                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                yCenter.push_back(+offset-girth/2);
-                zCenter.push_back(13-0.25-i*0.1-3*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-        if (j==3) {
-            for (int i = 0; i<17; i++) {
-                xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-                yCenter.push_back(+offset-girth/2);
-                zCenter.push_back(13-0.4-i*0.1-6*rCell-i*2*rCell);
-                count=count+1;
-                //cout<<"("<<xCenter.back()<<","<<yCenter.back()<<","<<zCenter.back()<<") "<<count<<endl;
-            }
-        }
-
-    }
-
-    cout<<count<<endl;
-    mod_straws.push_back(count);
-    cout<<mod_straws[0]<<","<<mod_straws[1]<<","<<mod_straws[2]<<","<<mod_straws[3]<<endl;
-
-    return std::make_tuple(xCenter, yCenter, zCenter,mod_straws);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseStepZoffset() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-    int count = 0;
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset-girth/2);
-            yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.1+0.1);}
-            else {zCenter.push_back(i*2*rCell+i*0.1+0.05);}
-            count = count + 1;
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            yCenter.push_back(-offset+girth/2);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.1+0.1);}
-            else {zCenter.push_back(i*2*rCell+i*0.1+0.05);}
-            count = count + 1;
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(girth/2-offset);
-            yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.1+0.1);}
-            else {zCenter.push_back(i*2*rCell+i*0.1+0.05);}
-            count = count + 1;
-        }
     }
 
 
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            yCenter.push_back(+offset-girth/2);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.1+0.1);}
-            else {zCenter.push_back(i*2*rCell+i*0.1+0.05);}
-            count = count + 1;
-        }
-    }
-
-    cout<<count<<endl;
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseStepXYoffset() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(-offset-1);
-            yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {xCenter.push_back(-offset-rCell-1);}
-            else {xCenter.push_back(-offset-1);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            //yCenter.push_back(offset+1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {yCenter.push_back(offset+1);}
-            else {yCenter.push_back(offset+rCell+1);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(offset+1);
-            yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-
-            if (j%2!=0) {xCenter.push_back(offset+rCell+1);}
-            else {xCenter.push_back(offset+1);}
-        }
-    }
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            //yCenter.push_back(-offset-1);
-            zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {yCenter.push_back(-offset-1);}
-            else {yCenter.push_back(-offset-rCell-1);}
-        }
-    }
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseStepZXYoffset() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(-offset-1);
-            yCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {xCenter.push_back(-offset-rCell-1);}
-            else {xCenter.push_back(-offset-1);}
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);}
-            else {zCenter.push_back(i*2*rCell+i*0.2+0.1);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*(2*rCell+0.1)+rCell+0.1);
-            //yCenter.push_back(offset+1);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {yCenter.push_back(offset+1);}
-            else {yCenter.push_back(offset+rCell+1);}
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);}
-            else {zCenter.push_back(i*2*rCell+i*0.2+0.1);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(offset+1);
-            yCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-
-            if (j%2!=0) {xCenter.push_back(offset+rCell+1);}
-            else {xCenter.push_back(offset+1);}
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);}
-            else {zCenter.push_back(i*2*rCell+i*0.2+0.1);}
-        }
-    }
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*(2*rCell+0.1)+rCell+0.1));
-            //yCenter.push_back(-offset-1);
-            //zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);
-
-            if (j%2!=0) {yCenter.push_back(-offset-1);}
-            else {yCenter.push_back(-offset-rCell-1);}
-
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell+i*0.2+0.2);}
-            else {zCenter.push_back(i*2*rCell+i*0.2+0.1);}
-        }
-    }
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverse() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-offset);
-            yCenter.push_back(offset+j*2*rCell+rCell);
-            zCenter.push_back(i*2*rCell+rCell);
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*2*rCell+rCell);
-            yCenter.push_back(offset);
-            zCenter.push_back(i*2*rCell+rCell);
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset);
-            yCenter.push_back(-(offset+j*2*rCell+rCell));
-            zCenter.push_back(i*2*rCell+rCell);
-        }
-    }
-
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*2*rCell+rCell));
-            yCenter.push_back(-offset);
-            zCenter.push_back(i*2*rCell+rCell);
-        }
-    }
-
-
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseSingleOffset() {
-
-     std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-offset);
-            yCenter.push_back(offset+j*2*rCell+rCell);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*2*rCell+rCell);
-            yCenter.push_back(offset);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset);
-            yCenter.push_back(-(offset+j*2*rCell+rCell));
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-        }
-    }
-
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*2*rCell+rCell));
-            yCenter.push_back(-offset);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-        }
-    }
-
-
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseDoubleOffset() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(-offset);
-            yCenter.push_back(offset+j*2*rCell+rCell);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {xCenter.push_back(-offset-rCell);}
-            else {xCenter.push_back(-offset);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*2*rCell+rCell);
-            //yCenter.push_back(offset);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {yCenter.push_back(offset);}
-            else {yCenter.push_back(offset+rCell);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(offset);
-            yCenter.push_back(-(offset+j*2*rCell+rCell));
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {xCenter.push_back(offset+rCell);}
-            else {xCenter.push_back(offset);}
-        }
-    }
-
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*2*rCell+rCell));
-            yCenter.push_back(-offset);
-            //zCenter.push_back(i*2*rCell+rCell);
-            if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {yCenter.push_back(-offset);}
-            else {yCenter.push_back(-offset-rCell);}
-        }
-    }
-
-
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
-
-}
-
-std::tuple<std::vector<double>, std::vector<double>,std::vector<double>> GetStrawCentersTransverseXYOffset() {
-
-    std::vector<double> xCenter, yCenter, zCenter;
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(-offset);
-            yCenter.push_back(offset+j*2*rCell+rCell);
-            zCenter.push_back(i*2*rCell+rCell);
-            //if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            //else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {xCenter.push_back(-offset-rCell);}
-            else {xCenter.push_back(-offset);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(offset+j*2*rCell+rCell);
-            //yCenter.push_back(offset);
-            zCenter.push_back(i*2*rCell+rCell);
-            //if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            //else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {yCenter.push_back(offset);}
-            else {yCenter.push_back(offset+rCell);}
-        }
-    }
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            //xCenter.push_back(offset);
-            yCenter.push_back(-(offset+j*2*rCell+rCell));
-            zCenter.push_back(i*2*rCell+rCell);
-            //if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            //else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {xCenter.push_back(offset+rCell);}
-            else {xCenter.push_back(offset);}
-        }
-    }
-
-
-
-    for (int i = -rows; i<rows; ++i) {
-        for (int j = 0; j<layers; ++j) {
-            xCenter.push_back(-(offset+j*2*rCell+rCell));
-            yCenter.push_back(-offset);
-            //zCenter.push_back(i*2*rCell+rCell);
-            //if (j%2==0) {zCenter.push_back(i*2*rCell+rCell);}
-            //else {zCenter.push_back(i*2*rCell);}
-
-            if (j%2!=0) {yCenter.push_back(-offset);}
-            else {yCenter.push_back(-offset-rCell);}
-        }
-    }
-
-
-
-    return std::make_tuple(xCenter, yCenter, zCenter);
+    return std::make_tuple(xCenter, yCenter, zCenter, mod);
 
 }
 
@@ -799,7 +177,7 @@ void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yC
             straw->SetLineColor(kBlack);
             straw->Draw("same");
 
-    TBox* cell = new TBox(-7.5, -3, 7.5, 3);
+    TBox* cell = new TBox(-4.926, -3, 9.474, 3);
         cell->SetFillStyle(0); // No fill
         cell->SetLineColor(kRed);
         cell->Draw("same");
@@ -824,72 +202,644 @@ void PlotMidYZ(const std::vector<double>& zCenter, const std::vector<double>& yC
     canvas->Update();
 }
 
-void PlotDOCAZY(const std::vector<double>& zcell, const std::vector<double>& ycell, std::vector<double> radius, std::vector<double> mod_straws) {
+void PlotBoxYZ(const std::vector<double>& zCenter, const std::vector<double>& yCenter, std::vector<double> mod) {
+    TCanvas* canvas = new TCanvas("canvas", "Straws and Track", 800, 800);
+    // Create a canvas
+    canvas->SetFixedAspectRatio(); // Ensure equal scaling on both axes
+    canvas->DrawFrame(-200, -200, 200, 200); // Set the drawing frame (xMin, yMin, xMax, yMax)
 
-    // Draw the circles (straws)
-    for (size_t i = 0; i < radius.size(); ++i) {
+    TEllipse* straw = new TEllipse(0,0,150);
+            straw->SetFillStyle(0); // No fill
+            straw->SetLineColor(kBlack);
+            straw->Draw("same");
 
-        if (i<mod_straws[0] || (i>mod_straws[1] && i<mod_straws[2]) ) {
-            TEllipse* DOCA = new TEllipse(zcell[i], ycell[i], radius[i]);
-            DOCA->SetFillStyle(0); // No fill
-            DOCA->SetLineColor(kRed);
-            DOCA->Draw("same");
+    TBox* cell = new TBox(-49.26, -30, 94.74, 30);
+        cell->SetFillStyle(0); // No fill
+        cell->SetLineColor(kRed);
+        cell->Draw("same");
+
+    TBox* vacuum = new TBox(-134, -63.5, 134, 63.5);
+        vacuum->SetFillStyle(0); // No fill
+        vacuum->SetLineColor(kBlue);
+        vacuum->Draw("same");
+
+    for (int i = 0; i < mod.size(); ++i) {
+
+            if (mod[i]==0) {
+                TBox* box1 = new TBox(zCenter[i]+girth/2, yCenter[i]+thick/2,zCenter[i]-girth/2,  yCenter[i]-thick/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+            if (mod[i]==2) {
+                TBox* box1 = new TBox(zCenter[i]+girth/2, yCenter[i]+thick/2,zCenter[i]-girth/2,  yCenter[i]-thick/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+
         }
-    }
 
+    canvas->Update();
 }
 
-void PlotXYCells(const std::vector<double>& xCenter, const std::vector<double>& yCenter, std::vector<double> mod_straws) {
+void PlotXYBox(const std::vector<double>& xCenter, const std::vector<double>& yCenter, std::vector<double> mod) {
     // Check if the inputs are valid
 
     TCanvas* canvas = new TCanvas("canvas", "Straws and Track", 1000, 1000);
     // Create a canvas
     canvas->SetFixedAspectRatio(); // Ensure equal scaling on both axes
-    canvas->DrawFrame(-20, -20, 20, 20); // Set the drawing frame (xMin, yMin, xMax, yMax)
+    canvas->DrawFrame(-200, -200, 200, 200); // Set the drawing frame (xMin, yMin, xMax, yMax)
 
-    TEllipse* DOCA = new TEllipse(0,0,15);
+    TEllipse* DOCA = new TEllipse(0,0,vacuum);
             DOCA->SetFillStyle(0); // No fill
             DOCA->SetLineColor(kRed);
             DOCA->Draw("same");
 
-    TEllipse* DOCA1 = new TEllipse(0,0,6.35);
+    TEllipse* DOCA1 = new TEllipse(0,0,offset);
             DOCA1->SetFillStyle(0); // No fill
             DOCA1->SetLineColor(kBlack);
             DOCA1->Draw("same");
 
 
     // Draw the box (straws)
-    for (int i = 0; i < mod_straws[0]; ++i) {
-        TBox* straw = new TBox(xCenter[i]-girth/2+3, yCenter[i]-rCell, xCenter[i]+girth/2-1, yCenter[i]+rCell);
-        straw->SetFillStyle(0); // No fill
-        straw->SetLineColor(kBlack);
-        straw->Draw("same");
-    }
+
+        for (int i = 0; i < mod.size(); ++i) {
+
+            if (mod[i]==0) {
+                TBox* box1 = new TBox(xCenter[i]+length/2, yCenter[i]+thick/2,xCenter[i]-length/2,  yCenter[i]-thick/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+            if (mod[i]==1) {
+                TBox* box1 = new TBox(xCenter[i]+thick/2, yCenter[i]+length/2,xCenter[i]-thick/2,  yCenter[i]-length/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+            if (mod[i]==2) {
+                TBox* box1 = new TBox(xCenter[i]+length/2, yCenter[i]+thick/2,xCenter[i]-length/2,  yCenter[i]-thick/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+            if (mod[i]==3) {
+                TBox* box1 = new TBox(xCenter[i]-thick/2, yCenter[i]+length/2,xCenter[i]+thick/2,  yCenter[i]-length/2);
+                box1->SetFillStyle(0); // No fill
+                box1->SetLineColor(kBlack);
+                box1->Draw("same");
+            }
+
+
+        }
+    /*
 
     for (int i = mod_straws[0]; i < mod_straws[1]; ++i) {
-        TBox* straw1 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2+1, xCenter[i]+rCell, yCenter[i]+girth/2-3);
+        TBox* straw1 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2, xCenter[i]+rCell, yCenter[i]+girth/2-3);
         straw1->SetFillStyle(0); // No fill
         straw1->SetLineColor(kRed);
         straw1->Draw("same");
     }
 
     for (int i = mod_straws[1]; i < mod_straws[2]; ++i) {
-        TBox* straw2 = new TBox(xCenter[i]-girth/2+1, yCenter[i]-rCell, xCenter[i]+girth/2-3, yCenter[i]+rCell);
+        TBox* straw2 = new TBox(xCenter[i]-girth/2, yCenter[i]-rCell, xCenter[i]+girth/2, yCenter[i]+rCell);
         straw2->SetFillStyle(0); // No fill
         straw2->SetLineColor(kBlue);
         straw2->Draw("same");
     }
 
     for (int i = mod_straws[2]; i < mod_straws[3]; ++i) {
-        TBox* straw3 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2+3, xCenter[i]+rCell, yCenter[i]+girth/2-1);
+        TBox* straw3 = new TBox(xCenter[i]-rCell, yCenter[i]-girth/2, xCenter[i]+rCell, yCenter[i]+girth/2);
         straw3->SetFillStyle(0); // No fill
         straw3->SetLineColor(kGreen);
         straw3->Draw("same");
 
     }
 
+    */
 
     // Update the canvas to render the drawing
+    canvas->Update();
+}
+
+std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::vector<double>,
+           std::vector<double>, std::vector<double>, std::vector<int>>
+BoxHits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell, std::vector<double> mod) {
+
+    std::vector<double> xcells, ycells, zcells;
+    std::vector<double> xhits, yhits, zhits;
+    std::vector<int> axis;
+
+    double mag = sqrt(dirvect[0]*dirvect[0]+dirvect[1]*dirvect[1]+dirvect[2]*dirvect[2]);
+    double ux = dirvect[0]/mag, uy = dirvect[1]/mag, uz = dirvect[2]/mag;
+    double x0 = posvect[0], y0 = posvect[1], z0 = posvect[2];
+    float L = length, W = girth, T = thick;
+
+    for (int i=0; i<xcell.size(); i++) {
+
+    double rx = xcell[i], ry = ycell[i], rz = zcell[i];
+
+    L = thick/2, W = girth, T = length;
+
+    if (mod[i] == 0) {
+
+    // Intersection with x = rx + T/2
+    if (ux != 0) {
+        double t = (rx + T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx+T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    // Intersection with x = rx - T/2
+    if (ux != 0) {
+        double t = (rx + T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx-T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry - L/2
+    if (uy != 0) {
+        double t = (ry - L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry-L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry + L/2
+    if (uy != 0) {
+        double t = (ry + L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry+L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz - W/2
+    if (uz != 0) {
+        double t = (rz - W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+           xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz-W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz + W/2
+    if (uz != 0) {
+        double t = (rz + W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz+W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(0);
+            continue;
+        }
+    }
+
+    }
+
+    L = length, W = girth, T = thick/2;
+
+    if (mod[i] == 1) {
+
+    // Intersection with x = rx - T/2
+    if (ux != 0) {
+        double t = (rx - T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx-T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    // Intersection with x = rx + T/2
+    if (ux != 0) {
+        double t = (rx + T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx+T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry - L/2
+    if (uy != 0) {
+        double t = (ry - L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry-L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry + L/2
+    if (uy != 0) {
+        double t = (ry + L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry+L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz - W/2
+    if (uz != 0) {
+        double t = (rz - W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+           xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz-W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz + W/2
+    if (uz != 0) {
+        double t = (rz + W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz+W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(1);
+            continue;
+        }
+    }
+
+    }
+
+    L = thick/2, W = girth, T = length;
+
+    if (mod[i] == 2) {
+
+    // Intersection with x = rx - T/2
+    if (ux != 0) {
+        double t = (rx - T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx-T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    // Intersection with x = rx + T/2
+    if (ux != 0) {
+        double t = (rx + T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx+T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry - L/2
+    if (uy != 0) {
+        double t = (ry - L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry-L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry + L/2
+    if (uy != 0) {
+        double t = (ry + L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry+L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz - W/2
+    if (uz != 0) {
+        double t = (rz - W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+           xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz-W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz + W/2
+    if (uz != 0) {
+        double t = (rz + W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz+W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(2);
+            continue;
+        }
+    }
+
+    }
+
+    L = length, W = girth, T = thick/2;
+
+    if (mod[i] == 3) {
+
+    // Intersection with x = rx - T/2
+    if (ux != 0) {
+        double t = (rx - T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx-T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    // Intersection with x = rx + T/2
+    if (ux != 0) {
+        double t = (rx + T/2 - x0) / ux;
+        double y = y0 + t * uy;
+        double z = z0 + t * uz;
+        if (ry - L/2 <= y && y <= ry + L/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(rx+T/2);
+            yhits.push_back(y);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry - L/2
+    if (uy != 0) {
+        double t = (ry - L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry-L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    // Intersection with y = ry + L/2
+    if (uy != 0) {
+        double t = (ry + L/2 - y0) / uy;
+        double x = x0 + t * ux;
+        double z = z0 + t * uz;
+        if (rx - T/2 <= x && x <= rx + T/2 && rz - W/2 <= z && z <= rz + W/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(ry+L/2);
+            zhits.push_back(z);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz - W/2
+    if (uz != 0) {
+        double t = (rz - W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+           xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz-W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    // Intersection with z = rz + W/2
+    if (uz != 0) {
+        double t = (rz + W/2 - z0) / uz;
+        double x = x0 + t * ux;
+        double y = y0 + t * uy;
+        if (rx - T/2 <= x && x <= rx + T/2 && ry - L/2 <= y && y <= ry + L/2 && t>0) {
+            xhits.push_back(x);
+            yhits.push_back(y);
+            zhits.push_back(rz+W/2);
+            xcells.push_back(xcell[i]);
+            ycells.push_back(ycell[i]);
+            zcells.push_back(zcell[i]);
+            axis.push_back(3);
+            continue;
+        }
+    }
+
+    }
+
+    L = thick/2, W = girth, T = length;
+
+    }
+
+    if (xhits.size()<2) {
+
+        xhits.push_back(0);
+        xcells.push_back(0);
+
+        yhits.push_back(0);
+        ycells.push_back(0);
+
+        zhits.push_back(0);
+        zcells.push_back(0);
+    }
+
+
+    return std::make_tuple(xhits, yhits, zhits, xcells, ycells, zcells, axis);
+
+}
+
+void PlotXYPent(const std::vector<double>& xCenter, const std::vector<double>& yCenter, std::vector<double> mod) {
+    TCanvas* canvas = new TCanvas("canvas", "Straws and Track", 1000, 1000);
+    canvas->SetFixedAspectRatio();
+    canvas->DrawFrame(-200, -200, 200, 200);
+
+    // Draw reference circles
+    TEllipse* DOCA = new TEllipse(0, 0, vacuum);
+    DOCA->SetFillStyle(0);
+    DOCA->SetLineColor(kRed);
+    DOCA->Draw("same");
+
+    TEllipse* DOCA1 = new TEllipse(0, 0, offset);
+    DOCA1->SetFillStyle(0);
+    DOCA1->SetLineColor(kBlack);
+    DOCA1->Draw("same");
+
+    const int sides = 5; // Pentagon
+
+    for (int j = 0; j < layers; j++) {
+        double vertx[sides + 1]; // Ensure size is 6
+        double verty[sides + 1];
+
+        double circumradius = length/(2*sin(M_PI/5))+j*thick;
+
+        for (int i = 0; i < sides; i++) {
+            double angle = 2 * M_PI * i / sides;
+            vertx[i] = circumradius * cos(angle);
+            verty[i] = circumradius * sin(angle);
+        }
+
+        // Close the pentagon by repeating the first vertex
+        vertx[sides] = vertx[0];
+        verty[sides] = verty[0];
+
+        // Draw the pentagon using TPolyLine
+        TPolyLine* pentagon = new TPolyLine(sides + 1, vertx, verty);
+        pentagon->SetLineColor(kBlue);
+        pentagon->SetFillStyle(0);
+        pentagon->SetLineWidth(1);
+        pentagon->Draw("same");
+    }
+
     canvas->Update();
 }
 
@@ -912,12 +862,28 @@ void PlotFit(std::vector<double> trk_x,std::vector<double> trk_y) {
   TGraph* graph = new TGraph(trk_x.size(), trk_x.data(), trk_y.data());
 
   // Set the marker style for the points (e.g., a circle)
-  graph->SetMarkerStyle(21);  // 21: circle
-  graph->SetLineColor(kBlue);  // Red points
-  graph->SetMarkerSize(3);  // Marker size
+  graph->SetMarkerStyle(3);  // 21: circle
+  graph->SetMarkerColor(kBlue);  // Red points
+  graph->SetLineStyle(0);  // Red points
+  graph->SetMarkerSize(0.3);  // Marker size
 
   // Draw the graph on the canvas
-  graph->Draw("same");
+  graph->Draw("same, P");
+
+}
+
+void PlotNoise(std::vector<double> trk_x,std::vector<double> trk_y) {
+
+  TGraph* graph = new TGraph(trk_x.size(), trk_x.data(), trk_y.data());
+
+  // Set the marker style for the points (e.g., a circle)
+  graph->SetMarkerStyle(3);  // 21: circle
+  graph->SetMarkerColor(kRed);  // Red points
+  graph->SetLineStyle(0);  // Red points
+  graph->SetMarkerSize(0.3);  // Marker size
+
+  // Draw the graph on the canvas
+  graph->Draw("same, P");
 
 }
 
@@ -969,9 +935,11 @@ std::vector<double> vertex_gen() {
 
     static std::random_device rd; // Random device for seeding
     static std::mt19937 gen(rd()); // Mersenne Twister generator
-    static std::uniform_real_distribution<> disXY(-0.3,0.3);//XY dispursion
+    static std::normal_distribution<> disXY(0,2);//XY dispursion
     static std::uniform_real_distribution<> disAB(-5.0/1000.0,5.0/1000.0);//Angular dispursion
-    static std::uniform_real_distribution<> disZ(-2.5,2.5);//Z vertex
+    //static std::uniform_real_distribution<> disZ(-49.26,0.74);//Small target z
+    static std::uniform_real_distribution<> disZ(-49.26,94.74);//Long target z
+
 
     // Generate incoming angle and position
     double x0 = disXY(gen), y0 = disXY(gen);
@@ -980,7 +948,8 @@ std::vector<double> vertex_gen() {
     std::vector<double> direction = {tan(A),tan(B),z0};
 
     //Calculate incoming direction and positions
-    double z = disZ(gen);
+    //double z = disZ(gen) + 57.5;//small target
+    double z = disZ(gen);//large target
     double x = x0 + z*tan(A), y = y0 + z*tan(B);
     std::vector<double> position = {x,y,z};
 
@@ -988,14 +957,11 @@ std::vector<double> vertex_gen() {
 
 }
 
-
 double lorentzFactor(double v) {
     return 1.0 / std::sqrt(1.0 - (v * v));
 }
 
-// Function to compute the Lorentz boost for direction vector along the z-axis
-std::vector<double> lorentzBoostDirection(const std::vector<double>& particleDirection,
-                                             double sourceVelocity) {
+std::vector<double> lorentzBoostDirection(const std::vector<double>& particleDirection, double sourceVelocity) {
     // Calculate the Lorentz factor
     double gamma = lorentzFactor(sourceVelocity);
 
@@ -1018,7 +984,6 @@ std::vector<double> lorentzBoostDirection(const std::vector<double>& particleDir
     return {v_x_prime, v_y_prime, v_z_prime};
 }
 
-
 std::pair<std::vector<double>,std::vector<double>> scatter() {
 
     std::vector<double> position = vertex_gen();
@@ -1036,6 +1001,16 @@ std::pair<std::vector<double>,std::vector<double>> scatter() {
     //cout<<"("<<COM_dir[0]<<","<<COM_dir[1]<<","<<COM_dir[2]<<")"<<endl;
     //cout<<"("<<lab_dir[0]<<","<<lab_dir[1]<<","<<lab_dir[2]<<")"<<endl;
 
+     std::vector<double> trk_x,trk_y,trk_z;
+
+    for (double t = 0; t<20; t=t+0.1) {
+        trk_x.push_back(lab_dir[0]*t+position[0]);
+        trk_y.push_back(lab_dir[1]*t+position[1]);
+        trk_z.push_back(lab_dir[2]*t+position[2]);
+    }
+
+    //PlotTrack(trk_z,trk_y);
+
     return std::make_pair(lab_dir, position);
 
 }
@@ -1048,6 +1023,7 @@ hits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<doubl
     std::vector<double> xhits, yhits, zhits;
     std::vector<double> radius;
     std::vector<int> axis;
+
 
     double mag = sqrt(dirvect[0]*dirvect[0]+dirvect[1]*dirvect[1]+dirvect[2]*dirvect[2]);
     double ux = dirvect[0]/mag, uy = dirvect[1]/mag, uz = dirvect[2]/mag;
@@ -1361,139 +1337,96 @@ Point3D findClosestPointOnLine(const Point3D& centroid, const Point3D& direction
     return closestPoint;
 }
 
+std::pair<float,float> randcirc() {
+    // Seed the random number generator
+    static bool seeded = false;
+    if (!seeded) {
+        std::srand(static_cast<unsigned int>(std::time(0)));
+        seeded = true;
+    }
+
+    // Generate a random angle between 0 and 2π
+    double angle = 2.0 * M_PI * static_cast<double>(std::rand()) / RAND_MAX;
+
+    // Convert the angle to Cartesian coordinates
+
+    return std::make_pair(cos(angle),sin(angle));
+}
+
+
 int main(int argc, char* argv[]) {
   TApplication app("app", &argc, argv);
 
-  //std::ofstream outfile("shift_4mm_3layers_gap.csv", std::ios::app);
-  std::ofstream outfile("dump", std::ios::app);
+  std::ofstream outfile("box4.csv", std::ios::app);
 
   //Generate straws
-  auto [xCenter,yCenter,zCenter,mod_straws] = GetStrawCentersTransverseStepZoffsetOverhang();
+  auto [xCenter,yCenter,zCenter,mod] = GetBoxStrips();
+  //auto [xCenter,yCenter,zCenter,mod] = GetPentStrips();
+  int counts = 0;
 
   //Plot straw array
-  //PlotXYCells(xCenter,yCenter,mod_straws);
-  PlotMidYZ(zCenter,yCenter,mod_straws);
+  //PlotXYBox(xCenter,yCenter,mod);
+  //PlotXYPent(xCenter,yCenter,mod);
+  PlotBoxYZ(zCenter,yCenter,mod);
+
+  for (int l = 0; l<sample_N; l++) {
 
   //Generate and plot proton track
-  //std::vector<double> trk_x,trk_y,trk_z,fit_x,fit_y,fit_z, dirvect=generateDir(), posvect=generatePos();
-  //std::vector<double> trk_x,trk_y,trk_z,fit_x,fit_y,fit_z;//dirvect={0,1,-1}, posvect={0.1,0.1,0.1};
+  std::vector<double> trk_x,trk_y,trk_z; //dirvect={0,0,0}, posvect={0.0,0.0,0.0};
 
-  int sample_N = 1000;
-  double counts = 0;
-  //for (double l = -7.5; l<7.5; l=l+0.1) {
+  //auto [x,y] = randcirc();
 
-      float sample = 0;
-      float nhits = 0;
-      float R_sum = 0;
+  //dirvect={x,y,0};
 
-      for (int k=0; k<sample_N; k++) {
+   auto [dirvect, posvect] = scatter();
+  //posvect={0.1,0.1,0.1};
+  //rvect[0] = 0;
+  //dirvect={0,1,0};
 
-    //std::vector<double> trk_x,trk_y,trk_z,dirvect = generateDir(), posvect = {0,0,0};
-
-    auto [dirvect, posvect] = scatter();
-    //posvect[2] = 0;
+  for (double i= 0; i<200.0; i = i + 0.5) {
+      trk_x.push_back(posvect[0]+i*dirvect[0]);
+      trk_y.push_back(posvect[1]+i*dirvect[1]);
+      trk_z.push_back(posvect[2]+i*dirvect[2]);
+  }
 
   //Determine hits
-  auto [xhits, yhits, zhits, xcells, ycells, zcells, radius, axis] = hits(posvect, dirvect, xCenter, yCenter, zCenter, mod_straws);
+  auto [xhits, yhits, zhits, xcells, ycells, zcells, axis] = BoxHits(posvect, dirvect, xCenter, yCenter, zCenter, mod);
 
-  //cout<<xhits.size()<<endl;
+  PlotTrack(trk_z, trk_y);
+  PlotFit(zhits,yhits);
 
-  //Plot Hits, randomise DOCA 10%, plot DOCA
-  //TGraph *graph = new TGraph();
-  //graph->SetMarkerStyle(20); // Set marker style
-  //graph->SetMarkerSize(1);   // Set marker size
-  //graph->SetMarkerColor(3);   // Set marker size
-  //graph->SetTitle("Example TGraph;X-axis;Y-axis");
+  for (int i=0; i<xhits.size(); i++) {
+        cout<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<xcells[i]<<","<<ycells[i]<<","<<zcells[i]<<endl;
+  }
 
-  for (int i = 0; i < radius.size(); ++i) {
-        radius[i] = randomiser(radius[i]);
-        //graph->SetPoint(i, zhits[i], yhits[i]);
-    }
+  for (int i = 0; i < xhits.size(); ++i) {
 
-    //graph->Draw("same, P");
-    //PlotDOCAZY(zcells,ycells,radius);
-
-    //Pack hits into cylinder objects and initalise track fitting algorithm
-
-    std::vector<Cylinder> cylinders;
-    std::vector<double> first = {0,0,1};
-    double min = 9999;
-
-    for (int i = 0; i<radius.size(); i++) {
-        Cylinder cyl(xcells[i], ycells[i], zcells[i], radius[i], length, axis[i]);
-        cylinders.push_back(cyl);
-
-        double diff = sqrt(xcells[i]*xcells[i]+ycells[i]*ycells[i]+zcells[i]*zcells[i]);
-        if (diff<min) {
-            min = diff;
-            first[0] = xcells[i];
-            first[1] = ycells[i];
-            first[2] = zcells[i];
-        }
+        float rand = randomiser(zhits[i],1.2/2.35);
 
     }
 
-    /*
-    std::vector<double> trk_x,trk_y,trk_z;
+  //PlotNoise(xhits,yhits);
 
-    for (double t = 0; t<20; t=t+0.1) {
-        trk_x.push_back(lab_dir[0]*t+position[0]);
-        trk_y.push_back(lab_dir[1]*t+position[1]);
-        trk_z.push_back(lab_dir[2]*t+position[2]);
-    }
-
-    PlotTrack(trk_z,trk_y);
-    */
-
-
-    //first = {0,0,1};
-
-    //Fit cylinders
-    auto [fitvec, fitcent] = FitRadii(cylinders,first);
-
-    //Plot fitted track
-    //for (double t = 0; t<20; t=t+0.1) {
-        //fit_x.push_back(fitvec[0]*t+fitcent[0]);
-        //fit_y.push_back(fitvec[1]*t+fitcent[1]);
-        //fit_z.push_back(fitvec[2]*t+fitcent[2]);
-    //}
-
-    Point3D reco_v = findClosestPointOnLine(fitcent,fitvec,posvect);
-    //PlotFit(fit_z,fit_y);
-
-    if (xhits.size()>2) {
-        //sample++;
-        nhits=nhits+xhits.size();
-        //reco_z->Fill(reco_v[2]-posvect[2]);
-        //R_sum = R_sum + reco_v;
-        reco_z->Fill(reco_v[2]-posvect[2]);
-
-    }
-
-    //reco_z_hits->Fill(xhits.size(),reco_v[2]-posvect[2]);
-
-    if (xhits.size()>2) {
+    if (xhits.size()>1) {
     counts = counts + 1;
     outfile<<"start"<<endl;
-    outfile<<counts<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<posvect[2]<<","<<reco_v[2]-posvect[2]<<","<<girth<<endl;
+    outfile<<counts<<","<<sample_N<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<posvect[2]<<endl;
 
     for (int i=0; i<xhits.size(); i++) {
-        outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<radius[i]<<","<<axis[i]<<endl;
+        outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<length<<","<<girth<<","<<axis[i]<<endl;
     }
 
     outfile<<"stop"<<endl;
 
     }
 
-
-
-  }
-
      cout<<counts<<endl;
      cout<<counts/sample_N<<endl;
+
+
   //cout<<l<<","<<sample/3000.0<<","<<nhits/3000.0<<endl;
 
-  //}
+  }
 
   //reco_z->Draw();
 
