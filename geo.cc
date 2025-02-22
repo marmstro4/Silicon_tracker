@@ -26,6 +26,11 @@
 #include<TF1.h>
 #include <TPolyLine.h>
 
+
+//Hit detection algorithm is broken, do the boring stupid way where you check limits around each of the cells and iterate a line through
+
+
+
 using namespace std;
 using Point3D = array<double, 3>;
 using Matrix3x3 = array<array<double, 3>, 3>;
@@ -42,10 +47,13 @@ float shift = 161;
 float gap = 0.8;
 double sig = 0;
 int layers = 2;
-int sample_N = 10000;
+int sample_N = 1;
+int space = 0;
+string filename = "dump.csv";
 
 TH2F* pos_z = new TH2F("pos_z","pos_z",30,-7.5,7.5,10,-2.5,2.5);
 TH1F* reco_z = new TH1F("reco_z","reco_z",1000,-25,25);
+
 TH2F* reco_z_hits = new TH2F("reco_z_hits","reco_z_hits",10,3,13,1000,-25,25);
 
 struct Cylinder {
@@ -74,14 +82,14 @@ struct Point {
     double x, y, z;
 };
 
-double randomiser(double pos, double spread) {
+double randomiser( double spread) {
     static std::random_device rd; // Random device for seeding
     static std::mt19937 gen(rd()); // Mersenne Twister generator
     static std::normal_distribution<> dis(0,spread);
 
-    double randx = dis(gen);
+    double rand = dis(gen);
 
-    return randx;
+    return rand;
 }
 
 std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::vector<double>> GetBoxStrips() {
@@ -92,13 +100,13 @@ std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::ve
 
     for (int j = 0; j<layers; ++j) {
         xCenter.push_back(0);
-        yCenter.push_back(length/2+j*thick+thick/2);
+        yCenter.push_back(length/2+j*thick+thick/2+j*space);
         zCenter.push_back(shift-(k+1)*girth-2*k*gap);
         mod.push_back(0);
     }
 
     for (int j = 0; j<layers; ++j) {
-        xCenter.push_back(length/2+j*thick+thick/2);
+        xCenter.push_back(length/2+j*thick+thick/2+j*space);
         yCenter.push_back(0);
         zCenter.push_back(shift-(k+1)*girth-2*k*gap);
         mod.push_back(1);
@@ -106,13 +114,13 @@ std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::ve
 
     for (int j = 0; j<layers; ++j) {
         xCenter.push_back(0);
-        yCenter.push_back(-length/2-j*thick-thick/2);
+        yCenter.push_back(-length/2-j*thick-thick/2-j*space);
         zCenter.push_back(shift-(k+1)*girth-2*k*gap);
         mod.push_back(2);
     }
 
     for (int j = 0; j<layers; ++j) {
-        xCenter.push_back(-length/2-j*thick-thick/2);
+        xCenter.push_back(-length/2-j*thick-thick/2-j*space);
         yCenter.push_back(0);
         zCenter.push_back(shift-(k+1)*girth-2*k*gap);
         mod.push_back(3);
@@ -138,7 +146,7 @@ std::tuple<std::vector<double>, std::vector<double>,std::vector<double>, std::ve
             std::vector<float> verty;
 
             for (int i = 0; i<sides; i++) {
-                float circumradius = length/2+j*thick+thick/2;
+                float circumradius = length/2+j*thick+thick/2+j*space;
                 vertx.push_back(circumradius*cos(2*3.14159*i/sides));
                 verty.push_back(circumradius*sin(2*3.14159*i/sides));
             }
@@ -328,13 +336,7 @@ void PlotXYBox(const std::vector<double>& xCenter, const std::vector<double>& yC
     canvas->Update();
 }
 
-std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::vector<double>,
-           std::vector<double>, std::vector<double>, std::vector<int>>
-BoxHits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell, std::vector<double> mod) {
-
-    std::vector<double> xcells, ycells, zcells;
-    std::vector<double> xhits, yhits, zhits;
-    std::vector<int> axis;
+void BoxHits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell, std::vector<double> mod, std::vector<double>& xhits, std::vector<double>& yhits,std::vector<double>& zhits, std::vector<double>& xcells, std::vector<double>& ycells, std::vector<double>& zcells, std::vector<int>& axis) {
 
     double mag = sqrt(dirvect[0]*dirvect[0]+dirvect[1]*dirvect[1]+dirvect[2]*dirvect[2]);
     double ux = dirvect[0]/mag, uy = dirvect[1]/mag, uz = dirvect[2]/mag;
@@ -781,21 +783,108 @@ BoxHits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<do
 
     }
 
-    if (xhits.size()<2) {
+}
 
-        xhits.push_back(0);
-        xcells.push_back(0);
+#include <iostream>
+#include <vector>
+#include <cmath>
 
-        yhits.push_back(0);
-        ycells.push_back(0);
+struct Vector3 {
+    double x, y, z;
+    Vector3(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {}
+    Vector3 operator-(const Vector3& v) const { return Vector3(x - v.x, y - v.y, z - v.z); }
+    Vector3 operator+(const Vector3& v) const { return Vector3(x + v.x, y + v.y, z + v.z); }
+    Vector3 operator*(double s) const { return Vector3(x * s, y * s, z * s); }
+    double dot(const Vector3& v) const { return x * v.x + y * v.y + z * v.z; }
+    Vector3 cross(const Vector3& v) const {
+        return Vector3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
+    }
+    double norm() const { return std::sqrt(x * x + y * y + z * z); }
+    Vector3 normalize() const { return *this * (1.0 / norm()); }
+};
 
-        zhits.push_back(0);
-        zcells.push_back(0);
+double distance(const Vector3& a, const Vector3& b) {
+    return (a - b).norm();
+}
+
+bool lineSegmentIntersection(const Vector3& p1, const Vector3& p2, const Vector3& q1, const Vector3& q2, Vector3& intersection) {
+    Vector3 r = p2 - p1;
+    Vector3 s = q2 - q1;
+    Vector3 qp = q1 - p1;
+    double rCrossS = r.cross(s).norm();
+    if (rCrossS == 0) return false; // Lines are parallel or collinear
+
+    double t = qp.cross(s).norm() / rCrossS;
+    double u = qp.cross(r).norm() / rCrossS;
+
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+        intersection = p1 + r * t;
+        return true;
     }
 
+    std::cout << "(" << intersection.x << ", " << intersection.y << ", " << intersection.z << ")\n";
 
-    return std::make_tuple(xhits, yhits, zhits, xcells, ycells, zcells, axis);
+    return false;
+}
 
+std::vector<Vector3> pentagonVertices(double circumradius, double height) {
+    std::vector<Vector3> vertices;
+    double angleStep = 2 * M_PI / 5;
+    for (int i = 0; i < 5; ++i) {
+        double angle = i * angleStep;
+        double x = circumradius * cos(angle);
+        double y = circumradius * sin(angle);
+        vertices.push_back(Vector3(x, y, -height / 2));
+        vertices.push_back(Vector3(x, y, height / 2));
+    }
+    return vertices;
+}
+
+std::vector<Vector3> findIntersections(const Vector3& p0, const Vector3& u, double circumradius, double height, double disp_z) {
+    std::vector<Vector3> vertices = pentagonVertices(circumradius, height + disp_z);
+    std::vector<Vector3> intersections;
+    for (int i = 0; i < 10; i += 2) {
+        for (int j = 0; j < 2; ++j) {
+            Vector3 p1 = vertices[i + j];
+            Vector3 p2 = vertices[(i + 2) % 10 + j];
+            Vector3 intersection;
+            if (lineSegmentIntersection(p0, p0 + u * 1000, p1, p2, intersection)) {
+                intersections.push_back(intersection);
+            }
+        }
+    }
+    return intersections;
+}
+
+void PentHits(std::vector<double> posvect, std::vector<double> dirvect, std::vector<double> xcell, std::vector<double> ycell, std::vector<double> zcell, std::vector<double> mod, std::vector<double>& xhits, std::vector<double>& yhits,std::vector<double>& zhits, std::vector<double>& xcells, std::vector<double>& ycells, std::vector<double>& zcells, std::vector<int>& axis) {
+
+    double mag = sqrt(dirvect[0]*dirvect[0]+dirvect[1]*dirvect[1]+dirvect[2]*dirvect[2]);
+    double ux = dirvect[0]/mag, uy = dirvect[1]/mag, uz = dirvect[2]/mag;
+    double x0 = posvect[0], y0 = posvect[1], z0 = posvect[2];
+    float L = length, W = girth, T = thick;
+
+    Vector3 centroid(x0,y0,z0);
+    Vector3 direction(ux,uy,uz);
+    direction = direction.normalize();
+
+    for (int i = 0; i<layers; i++) {
+
+        for (int k = 0; k<rows; k++) {
+
+            double disp_z = 0;//shift-(k+1)*girth-2*k*gap;
+
+            std::vector<Vector3> intersections = findIntersections(centroid, direction, length/2+i*thick+thick/2+i*space, girth, disp_z);
+
+            std::cout << "Intersection points:\n";
+            for (const auto& point : intersections) {
+                std::cout << "(" << point.x << ", " << point.y << ", " << point.z << ")\n";
+                xhits.push_back(point.x);
+                yhits.push_back(point.y);
+                zhits.push_back(point.z);
+                axis.push_back(0);
+            }
+        }
+    }
 }
 
 void PlotXYPent(const std::vector<double>& xCenter, const std::vector<double>& yCenter, std::vector<double> mod) {
@@ -1357,29 +1446,30 @@ std::pair<float,float> randcirc() {
 int main(int argc, char* argv[]) {
   TApplication app("app", &argc, argv);
 
-  std::ofstream outfile("box4.csv", std::ios::app);
+  std::ofstream outfile(filename, std::ios::app);
 
   //Generate straws
-  auto [xCenter,yCenter,zCenter,mod] = GetBoxStrips();
-  //auto [xCenter,yCenter,zCenter,mod] = GetPentStrips();
+  //auto [xCenter,yCenter,zCenter,mod] = GetBoxStrips();
+  auto [xCenter,yCenter,zCenter,mod] = GetPentStrips();
   int counts = 0;
 
   //Plot straw array
   //PlotXYBox(xCenter,yCenter,mod);
-  //PlotXYPent(xCenter,yCenter,mod);
-  PlotBoxYZ(zCenter,yCenter,mod);
+  PlotXYPent(xCenter,yCenter,mod);
+  //PlotBoxYZ(zCenter,yCenter,mod);
 
   for (int l = 0; l<sample_N; l++) {
 
   //Generate and plot proton track
-  std::vector<double> trk_x,trk_y,trk_z; //dirvect={0,0,0}, posvect={0.0,0.0,0.0};
+  std::vector<double> trk_x,trk_y,trk_z, dirvect={0,0,0}, posvect={0.0,0.0,0.0};
 
-  //auto [x,y] = randcirc();
+  auto [x,y] = randcirc();
 
-  //dirvect={x,y,0};
+  dirvect={x,y,0};
 
-   auto [dirvect, posvect] = scatter();
-  //posvect={0.1,0.1,0.1};
+   //auto [dirvect, posvect] = scatter();
+
+  //posvect={0.0,0.0,0.0};
   //rvect[0] = 0;
   //dirvect={0,1,0};
 
@@ -1389,39 +1479,62 @@ int main(int argc, char* argv[]) {
       trk_z.push_back(posvect[2]+i*dirvect[2]);
   }
 
-  //Determine hits
-  auto [xhits, yhits, zhits, xcells, ycells, zcells, axis] = BoxHits(posvect, dirvect, xCenter, yCenter, zCenter, mod);
+  PlotTrack(trk_x, trk_y);
 
-  PlotTrack(trk_z, trk_y);
-  PlotFit(zhits,yhits);
+  std::vector<double> xhits, yhits, zhits, xcells, ycells, zcells;
+  std::vector<int> axis;
+
+  //Determine hits
+  //BoxHits(posvect, dirvect, xCenter, yCenter, zCenter, mod, xhits, yhits, zhits, xcells, ycells, zcells, axis);
+  PentHits(posvect, dirvect, xCenter, yCenter, zCenter, mod, xhits, yhits, zhits, xcells, ycells, zcells, axis);
+
+  if (xhits.size()>1) {
+
+  PlotFit(xhits,yhits);
 
   for (int i=0; i<xhits.size(); i++) {
-        cout<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<xcells[i]<<","<<ycells[i]<<","<<zcells[i]<<endl;
+      //cout<<axis[i]<<endl;
+    //cout<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<xcells[i]<<","<<ycells[i]<<","<<zcells[i]<<","<<axis[i]<<endl;
   }
 
-  for (int i = 0; i < xhits.size(); ++i) {
+  //cout<<"test2"<<endl;
 
-        float rand = randomiser(zhits[i],1.2/2.35);
+  for (int i = 0; i < xhits.size(); i++) {
+
+      //cout<<"test3"<<endl;
+
+      if (axis[i]==0 || axis[i]==2) {
+          xhits[i] += xhits[i] + randomiser(1.2/2.35);
+          zhits[i] += zhits[i] + randomiser(1.2/2.35);
+      }
+
+      if (axis[i]==1 || axis[i]==3) {
+          zhits[i] = zhits[i] + randomiser(1.2/2.35);
+          yhits[i] = yhits[i] + randomiser(1.2/2.35);
+      }
+
+      //cout<<"test4"<<endl;
 
     }
 
   //PlotNoise(xhits,yhits);
 
-    if (xhits.size()>1) {
     counts = counts + 1;
     outfile<<"start"<<endl;
-    outfile<<counts<<","<<sample_N<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<posvect[2]<<endl;
+    //cout<<counts<<","<<sample_N<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<dirvect[2]<<endl;
+    outfile<<counts<<","<<sample_N<<","<<posvect[0]<<","<<posvect[1]<<","<<posvect[2]<<","<<dirvect[0]<<","<<dirvect[1]<<","<<dirvect[2]<<endl;
 
     for (int i=0; i<xhits.size(); i++) {
-        outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<","<<length<<","<<girth<<","<<axis[i]<<endl;
+        outfile<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<endl;
+        cout<<xhits[i]<<","<<yhits[i]<<","<<zhits[i]<<endl;
     }
 
     outfile<<"stop"<<endl;
 
     }
 
-     cout<<counts<<endl;
-     cout<<counts/sample_N<<endl;
+     //cout<<counts<<endl;
+     //cout<<counts/sample_N<<endl;
 
 
   //cout<<l<<","<<sample/3000.0<<","<<nhits/3000.0<<endl;

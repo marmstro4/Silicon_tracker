@@ -3,6 +3,7 @@ import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from sklearn.decomposition import PCA
 
 def gaussian(x, amp, mean, sigma):
     return amp * np.exp(-((x - mean) / sigma)**2 / 2)
@@ -11,15 +12,6 @@ def fit_gaussian(hist, bins):
     bin_centers = (bins[1:] + bins[:-1]) / 2
     popt, pcov = curve_fit(gaussian, bin_centers, hist)
     return popt
-
-class Strip:
-    def __init__(self, a, b, c, w, L, mod):
-        self.a = a
-        self.b = b
-        self.c = c
-        self.w = w
-        self.L = L
-        self.mod = mod
 
 class Point3D:
     def __init__(self, x, y, z):
@@ -59,56 +51,17 @@ def extract_numbers(filename):
             i += 1
         return blocks
 
-def linetorectangle(params, rectangle):
+def linetopoint(params, point):
     x0, y0, z0, ux, uy, uz = params
-    a, b, c, W, L, modu = rectangle.a, rectangle.b, rectangle.c, rectangle.w, rectangle.L, rectangle.mod
 
-    # Ensure the direction vector is normalized
-    norm = math.sqrt(ux * ux + uy * uy + uz * uz)
-    ux /= norm
-    uy /= norm
-    uz /= norm
+    P = np.array([point.x, point.y, point.z])
+    O = np.array([x0, y0, z0])
+    U = np.array([ux, uy, uz])
 
-    # Parametric line: p(t) = (x0 + t*ux, y0 + t*uy, z0 + t*uz)
-    # Project the rectangle center onto the line
-    t = (a - x0) * ux + (b - y0) * uy + (c - z0) * uz
+    OP = P - O
 
-    # Closest point on the line
-    px = x0 + t * ux
-    py = y0 + t * uy
-    pz = z0 + t * uz
-
-    # Determine the dimensions of the rectangle based on modu
-    if modu == 0.0 or modu == 2.0:
-        # Rectangle is 79.2 long in x and 1 long in y
-        half_length_x = 79.2 / 2
-        half_length_y = 1
-        half_length_z = 0.001  # Assuming the rectangle is 1 unit thick in z
-        dx = px - a
-        dy = py - b
-        dz = pz - c
-    elif modu == 1.0 or modu == 3.0:
-        # Rectangle is 79.2 long in y and 1 long in x
-        half_length_x = 1
-        half_length_y = 79.2 / 2
-        half_length_z = 0.001  # Assuming the rectangle is 1 unit thick in z
-        dx = px - a
-        dy = py - b
-        dz = pz - c
-
-    # Clamp the closest point to the rectangle's bounds
-    clamped_x = max(-half_length_x, min(dx, half_length_x))
-    clamped_y = max(-half_length_y, min(dy, half_length_y))
-    clamped_z = max(-half_length_z, min(dz, half_length_z))
-
-    # Calculate the vector from the closest point on the line to the clamped point on the rectangle
-    closest_point_on_rectangle = (a + clamped_x, b + clamped_y, c + clamped_z)
-    closest_point_on_line = (px, py, pz)
-
-    # Calculate the distance between these two points
-    distance = math.sqrt((closest_point_on_rectangle[0] - closest_point_on_line[0]) ** 2 +
-                         (closest_point_on_rectangle[1] - closest_point_on_line[1]) ** 2 +
-                         (closest_point_on_rectangle[2] - closest_point_on_line[2]) ** 2)
+    cross_product = np.cross(OP, U)
+    distance = np.linalg.norm(cross_product) / np.linalg.norm(U)
 
     return distance
 
@@ -117,32 +70,48 @@ def FitFunction(params, strips):
 
     # Add penalties for violating the constraints
     penalty = 0.0
-    if x0 < -2:
-        penalty += 1e9 * (abs(x0) - 2)
-    elif x0 > 2:
-        penalty += 1e9 * (x0 - 2)
-    if y0 < -2:
-        penalty += 1e9 * (abs(y0) - 2)
-    elif y0 > 2:
-        penalty += 1e9 * (y0 - 2)
+    if x0 < -3:
+        penalty += 1e6 * (abs(x0) - 3)
+    elif x0 > 3:
+        penalty += 1e6 * (x0 - 3)
+    if y0 < -3:
+        penalty += 1e6 * (abs(y0) - 3)
+    elif y0 > 3:
+        penalty += 1e6 * (y0 - 3)
     if z0 < -49.26:
-        penalty += 1e9 * (abs(z0) + 49.26)
+        penalty += 1e6 * (abs(z0) + 49.26)
     elif z0 > 94.74:
-        penalty += 1e9 * (z0 - 94.74)
+        penalty += 1e6 * (z0 - 94.74)
 
     total_sum = 0.0
 
     for strip in strips:
-        total_sum += linetorectangle(params, strip)
+        total_sum += linetopoint(params, strip)
     return total_sum + penalty
 
-def FitRect(strips, first):
-    def fit_function(params):
-        return FitFunction(params, strips)
+def FitPoints(points):
+    # Use PCA to estimate the initial direction vector
+    points_array = np.array([[p.x, p.y, p.z] for p in points])
+    pca = PCA(n_components=1)
+    pca.fit(points_array)
+    direction = pca.components_[0]
+    centroid = pca.mean_
 
-    initial_params = np.array([first[0], first[1], first[2], 0, 0, 1])
-    bounds = [(-2, 2), (-2, 2), (-49.26, 94.74), (-1, 1), (-1, 1), (-1, 1)]
-    result = minimize(fit_function, initial_params, method='Powell', bounds=bounds)
+    # Ensure the initial parameters are within the bounds
+    x0, y0, z0 = centroid
+    ux, uy, uz = direction
+
+    # Clip the initial parameters to the bounds
+    x0 = np.clip(x0, -3, 3)
+    y0 = np.clip(y0, -3, 3)
+    z0 = np.clip(z0, -49.26, 94.74)
+    ux = np.clip(ux, -1, 1)
+    uy = np.clip(uy, -1, 1)
+    uz = np.clip(uz, -1, 1)
+
+    initial_params = np.array([x0, y0, z0, ux, uy, uz])
+    bounds = [(-3, 3), (-3, 3), (-49.26, 94.74), (-1, 1), (-1, 1), (-1, 1)]
+    result = minimize(FitFunction, initial_params, args=(points,), method='Powell', bounds=bounds)
 
     centroid = result.x[:3]
     direction = result.x[3:]
@@ -176,33 +145,29 @@ def findClosestPointOnLine(centroid, direction, point):
 
     return closestPoint
 
-filename = 'box4.csv'  # replace with your file name
+filename = 'build/10mm_space.csv'  # replace with your file name
 result = extract_numbers(filename)
 reco_z_err = []
 count = 0
 
 for block in result:
-    strips = []
+    points = []
     origin = Point3D(block[0][2], block[0][3], block[0][4])
     count = block[0][0]
+    print(count)
 
-    if count > 100:
+    if count > 1000:
         break
 
     for line in block[1]:
-        print(line)
         if line[0] == 0.0:
             continue
-        strip = Strip(line[0], line[1], line[2], line[3], line[4], line[5])
-        strips.append(strip)
+        point = Point3D(line[0], line[1], line[2])
+        points.append(point)
 
-    first = [0, 0, 1]
-    min_diff = 1e6
-
-    for i in range(len(strips)):
-        fitvec, fitcent = FitRect([strips[i]], first)
-        reco_v = findClosestPointOnLine(fitcent, fitvec, origin)
-        reco_z_err.append(reco_v[2] - origin[2])
+    fitvec, fitcent = FitPoints(points)
+    reco_v = findClosestPointOnLine(fitcent, fitvec, origin)
+    reco_z_err.append(reco_v[2] - origin[2])
 
 hist, bins = np.histogram(reco_z_err, bins=200, range=(-100, 100))
 bin_centers = (bins[1:] + bins[:-1]) / 2
@@ -218,14 +183,12 @@ for i in range(max_idx - min_idx):
 
 print("mean = ", popt[1], " +/-", np.sqrt(pcov[1, 1]), " [mm]")
 print("sigma = ", popt[2], " +/-", np.sqrt(pcov[2, 2]), " [mm]")
-print("integral =", integral, ", 3sig =", integral / count)
+print("integral =", integral, ", 5sig =", integral / count)
 
-x = np.linspace(bin_centers[0], bin_centers[-1], 100)
+x = np.linspace(bin_centers[0], bin_centers[-1], 200)
 y = gaussian(x, *popt)
 
 plt.hist(reco_z_err, bins=200, range=(-100, 100), alpha=0.5, label='Histogram')
 plt.plot(x, y, label='Fitted Gaussian')
 plt.legend()
 plt.show()
-
-#Understanding geometry of reconstruction incorrectly its lines not surfaces
